@@ -6,15 +6,13 @@ import open from 'open'
 import c from 'picocolors'
 import { x } from 'tinyexec'
 
-const result = await x('pnpm', ['recursive', 'ls', '--json'])
+const stdout = await fs.access('pnpm-workspace.yaml').then(() => true).catch(() => false)
+  ? (await x('pnpm', ['recursive', 'ls', '--json'])).stdout
+  : `[${(await x('yarn', ['workspaces', 'list', '--json'])).stdout.trim().split('\n').join(',\n')}]`
 
 interface RawProject {
   name: string
   path: string
-  version: string
-  private: boolean
-  dependencies: Record<string, string>
-  devDependencies: Record<string, string>
 }
 
 interface Project {
@@ -23,13 +21,13 @@ interface Project {
   pkg: any
 }
 
-const raw = (JSON.parse(result.stdout) as RawProject[])
-  .filter(project => !project.private && !!project.version)
+const raw = (JSON.parse(stdout) as RawProject[])
 
 const projects: Project[] = (await Promise.all(raw.map(async (project) => {
   const pkg = JSON.parse(await fs.readFile(join(project.path, 'package.json'), 'utf-8'))
+  const isValid = !pkg.private && !!pkg.version
   return {
-    name: project.name,
+    name: isValid ? project.name : '',
     path: project.path,
     pkg,
   }
